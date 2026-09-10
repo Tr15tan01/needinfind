@@ -1,0 +1,88 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /*
+   * Every color in the design system is a CSS variable, and every Tailwind
+   * color token (tailwind.config.ts) reads from one of these rather than a
+   * literal hex value. That's what makes dark mode work across the entire
+   * app — including admin, built across 12 earlier phases — without
+   * retrofitting a `dark:` variant onto every individual className. Only
+   * `.dark` on <html> needs to toggle; everything downstream just works.
+   */
+  :root {
+    color-scheme: light;
+
+    --color-ink-900: 23 27 46;     /* #171B2E */
+    --color-ink-700: 37 42 68;     /* #252A44 */
+    --color-ink-500: 69 76 107;    /* #454C6B */
+    --color-ink-300: 135 144 172;  /* #8790AC */
+    --color-ink-100: 214 218 231;  /* #D6DAE7 */
+    --color-ink-50: 238 240 246;   /* #EEF0F6 */
+
+    --color-parchment: 251 249 244;      /* #FBF9F4 */
+    --color-parchment-200: 243 239 228;  /* #F3EFE4 */
+    --color-surface: 255 255 255;        /* card backgrounds — white in light mode */
+
+    --color-trust-100: 228 239 235; /* #E4EFEB */
+    --color-trust-500: 47 111 94;   /* #2F6F5E */
+    --color-trust-700: 31 76 64;    /* #1F4C40 */
+
+    --color-gold-100: 246 236 217; /* #F6ECD9 */
+    --color-gold-500: 201 154 74;  /* #C99A4A */
+    --color-gold-700: 156 116 51;  /* #9C7433 */
+  }
+
+  .dark {
+    color-scheme: dark;
+
+    /* Ink flips: 900 becomes the lightest (near-white text), 50 becomes
+       the darkest (page background) — same semantic roles, inverted
+       luminance, rather than a separate unrelated dark palette. */
+    --color-ink-900: 237 239 246;  /* near-white headings/body text */
+    --color-ink-700: 205 210 224;
+    --color-ink-500: 158 166 189;  /* secondary text */
+    --color-ink-300: 108 116 140;  /* muted/placeholder text */
+    --color-ink-100: 54 60 82;     /* borders */
+    --color-ink-50: 36 40 56;
+
+    --color-parchment: 16 18 28;         /* page background */
+    --color-parchment-200: 24 27 40;     /* secondary background */
+    --color-surface: 28 31 46;           /* card backgrounds */
+
+    --color-trust-100: 27 46 41;
+    --color-trust-500: 74 158 135;  /* brightened for contrast on dark */
+    --color-trust-700: 134 199 180;
+
+    --color-gold-100: 54 45 26;
+    --color-gold-500: 214 172 96;   /* brightened for contrast on dark */
+    --color-gold-700: 232 197 138;
+  }
+
+  body {
+    @apply bg-parchment text-ink-900 font-sans antialiased;
+  }
+
+  h1, h2, h3 {
+    @apply font-display;
+  }
+
+  ::selection {
+    @apply bg-gold-100 text-ink-900;
+  }
+
+  :focus-visible {
+    outline: 2px solid theme("colors.trust.500");
+    outline-offset: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

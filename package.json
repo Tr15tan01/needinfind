@@ -1,0 +1,59 @@
+{
+  "name": "needinfind",
+  "version": "0.1.0",
+  "private": true,
+  "description": "NeedInFind — AI-powered affiliate shopping assistant. Phase 1: project foundation.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:studio": "prisma studio",
+    "prisma:seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "next": "16.3.3",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "@prisma/client": "5.20.0",
+    "next-auth": "5.0.0-beta.32",
+    "@auth/prisma-adapter": "2.7.2",
+    "@google/generative-ai": "0.21.0",
+    "@supabase/supabase-js": "2.45.4",
+    "bcryptjs": "2.4.3",
+    "marked": "18.0.11",
+    "sanitize-html": "2.17.7",
+    "server-only": "0.0.1",
+    "stripe": "22.6.0",
+    "zod": "3.23.8",
+    "clsx": "2.1.1",
+    "tailwind-merge": "2.5.4"
+  },
+  "devDependencies": {
+    "typescript": "5.6.3",
+    "@types/node": "20.16.11",
+    "@types/react": "19.0.0",
+    "@types/react-dom": "19.0.0",
+    "prisma": "5.20.0",
+    "@types/sanitize-html": "2.16.1",
+    "@types/bcryptjs": "2.4.6",
+    "tailwindcss": "3.4.13",
+    "@tailwindcss/typography": "0.5.20",
+    "postcss": "8.4.47",
+    "autoprefixer": "10.4.20",
+    "eslint": "9.13.0",
+    "vitest": "4.1.11",
+    "eslint-config-next": "16.3.3",
+    "tsx": "4.19.1"
+  },
+  "engines": {
+    "node": ">=18.18.0"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  }
+}
