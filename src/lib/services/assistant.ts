@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
 import { generateJson, generateText } from "@/lib/services/gemini";
 import { assistantTurnSchema, fallbackAskTurn, type AssistantTurn } from "@/lib/schemas/requirements";
 import { searchProducts, type ExtractedRequirements } from "@/lib/services/product-search";
@@ -145,7 +146,7 @@ export async function handleAssistantMessage(
 
   await prisma.conversation.update({
     where: { id: conversation.id },
-    data: { requirements: mergedRequirements }
+    data: { requirements: mergedRequirements as Prisma.InputJsonValue }
   });
 
   if (turn.action === "ask") {

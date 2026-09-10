@@ -1,5 +1,6 @@
 import "server-only";
 import { after } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 /**
@@ -33,7 +34,12 @@ export function recordEvent(
           type,
           userId: identity.userId ?? null,
           guestToken: identity.userId ? null : identity.guestToken ?? null,
-          metadata: metadata ?? undefined
+          // Prisma's generated Json input type is a recursive union
+          // (InputJsonValue) that a plain Record<string, unknown> isn't
+          // structurally assignable to, even though the actual runtime
+          // shape is fine — this cast is the standard, documented way to
+          // bridge that (see Prisma's own docs on the Json field type).
+          metadata: (metadata as Prisma.InputJsonValue) ?? undefined
         }
       });
     } catch (error) {
