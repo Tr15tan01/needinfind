@@ -4,18 +4,16 @@ const nextConfig = {
   // Produces a minimal, self-contained server bundle in .next/standalone —
   // what the Dockerfile copies into the final image, instead of shipping
   // the full node_modules tree.
-  output: "standalone",
+  // output: "standalone",
   images: {
     // Product images will initially come from CMS-entered URLs (retailer CDNs, uploads).
     // Add specific remotePatterns here as retailers/CDNs are configured.
-    remotePatterns: [
-      { protocol: "https", hostname: "**" }
-    ]
+    remotePatterns: [{ protocol: "https", hostname: "**" }],
   },
   experimental: {
     serverActions: {
-      bodySizeLimit: "2mb"
-    }
+      bodySizeLimit: "2mb",
+    },
   },
   // Baseline security headers (Phase 11 hardening pass). Deliberately not
   // including a Content-Security-Policy here: a *correct* CSP needs
@@ -36,12 +34,12 @@ const nextConfig = {
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           {
             key: "Permissions-Policy",
-            value: "camera=(), microphone=(), geolocation=()"
-          }
-        ]
-      }
+            value: "camera=(), microphone=(), geolocation=()",
+          },
+        ],
+      },
     ];
-  }
+  },
 };
 
 export default nextConfig;
