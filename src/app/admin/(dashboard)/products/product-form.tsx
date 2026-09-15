@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { SubmitButton } from "./submit-button";
 
 type ProductFormValues = {
   name?: string;
@@ -110,12 +111,10 @@ export async function ProductForm({
         </Field>
       </div>
 
-      <button
-        type="submit"
-        className="rounded-full bg-ink-900 px-5 py-2 text-sm font-medium text-parchment transition hover:bg-ink-700"
-      >
-        {submitLabel}
-      </button>
+      <SubmitButton
+        label={submitLabel}
+        pendingLabel={submitLabel === "Create product" ? "Creating…" : "Saving…"}
+      />
     </form>
   );
 }

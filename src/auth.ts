@@ -43,7 +43,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   // never rely on this because /login and /account redirect explicitly
   // themselves rather than depending on Auth.js's built-in redirect.
   pages: {
-    signIn: "/admin/login",
+    signIn: "/admin/login"
   },
   // Fires only when the Prisma adapter creates a brand-new user — i.e. a
   // first-time Google sign-in. Email/password registration creates its own
@@ -53,19 +53,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   events: {
     async createUser({ user }) {
       if (user.id) recordEvent("REGISTRATION", { userId: user.id });
-    },
+    }
   },
   providers: [
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET
     }),
     Credentials({
       id: "admin-credentials",
       name: "Admin login",
       credentials: {
         email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" },
+        password: { label: "Password", type: "password" }
       },
       async authorize(credentials) {
         const email = credentials?.email;
@@ -84,20 +84,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const valid = await compare(password, user.passwordHash);
         if (!valid) return null;
 
-        return {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-        };
-      },
+        return { id: user.id, name: user.name, email: user.email, role: user.role };
+      }
     }),
     Credentials({
       id: "customer-credentials",
       name: "Email and password",
       credentials: {
         email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" },
+        password: { label: "Password", type: "password" }
       },
       async authorize(credentials) {
         const email = credentials?.email;
@@ -112,14 +107,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const valid = await compare(password, user.passwordHash);
         if (!valid) return null;
 
-        return {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-        };
-      },
-    }),
+        return { id: user.id, name: user.name, email: user.email, role: user.role };
+      }
+    })
   ],
   callbacks: {
     async jwt({ token, user }) {
@@ -134,14 +124,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
     async session({ session, token }) {
       if (session.user) {
-        const user = session.user as typeof session.user & {
-          role?: string;
-          id?: string;
-        };
+        const user = session.user as typeof session.user & { role?: string; id?: string };
         user.role = token.role as string | undefined;
         if (token.sub) user.id = token.sub;
       }
       return session;
-    },
-  },
+    }
+  }
 });

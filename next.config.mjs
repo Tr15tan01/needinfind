@@ -1,19 +1,22 @@
 /** @type {import('next').NextConfig} */
 // Next.js 16: `next dev` and `next build` use Turbopack by default.
 const nextConfig = {
-  // Produces a minimal, self-contained server bundle in .next/standalone —
-  // what the Dockerfile copies into the final image, instead of shipping
-  // the full node_modules tree.
-  // output: "standalone",
+  // No `output: "standalone"` here — that's for the Dockerfile's
+  // self-hosted build. On Vercel it conflicts with Vercel's own build
+  // tracing and causes a missing next-server.js.nft.json error. If you
+  // switch to deploying via the Dockerfile instead of Vercel, add
+  // `output: "standalone",` back in.
   images: {
     // Product images will initially come from CMS-entered URLs (retailer CDNs, uploads).
     // Add specific remotePatterns here as retailers/CDNs are configured.
-    remotePatterns: [{ protocol: "https", hostname: "**" }],
+    remotePatterns: [
+      { protocol: "https", hostname: "**" }
+    ]
   },
   experimental: {
     serverActions: {
-      bodySizeLimit: "2mb",
-    },
+      bodySizeLimit: "2mb"
+    }
   },
   // Baseline security headers (Phase 11 hardening pass). Deliberately not
   // including a Content-Security-Policy here: a *correct* CSP needs
@@ -34,12 +37,12 @@ const nextConfig = {
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           {
             key: "Permissions-Policy",
-            value: "camera=(), microphone=(), geolocation=()",
-          },
-        ],
-      },
+            value: "camera=(), microphone=(), geolocation=()"
+          }
+        ]
+      }
     ];
-  },
+  }
 };
 
 export default nextConfig;

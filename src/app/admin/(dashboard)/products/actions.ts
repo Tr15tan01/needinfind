@@ -10,13 +10,16 @@ import { requireAdmin } from "@/lib/session";
 // exports), so every path a product change could affect needs to be
 // revalidated explicitly here — the time-based revalidation is a backstop,
 // not the primary invalidation mechanism.
-async function revalidateProductPaths(productId: string) {
-  const product = await prisma.product.findUnique({
-    where: { id: productId },
-    select: { slug: true, category: { select: { slug: true, parent: { select: { slug: true } } } } }
-  });
-  if (!product) return;
+//
+// Takes the already-fetched product shape rather than querying for it
+// itself — every call site already has this data from its own create/
+// update/delete query, so re-fetching here was a redundant round-trip.
+type RevalidateTarget = {
+  slug: string;
+  category: { slug: string; parent: { slug: string } | null } | null;
+};
 
+function revalidateProductPaths(product: RevalidateTarget) {
   revalidatePath(`/products/${product.slug}`);
   if (product.category) {
     revalidatePath(`/${product.category.slug}`);
@@ -83,11 +86,12 @@ export async function createProduct(formData: FormData) {
         : undefined,
       specifications: { create: parseLines(String(formData.get("specifications") ?? "")) },
       features: { create: parseFeatures(String(formData.get("features") ?? "")) }
-    }
+    },
+    include: { category: { select: { slug: true, parent: { select: { slug: true } } } } }
   });
 
   revalidatePath("/admin/products");
-  await revalidateProductPaths(product.id);
+  revalidateProductPaths(product);
   redirect(`/admin/products/${product.id}`);
 }
 
@@ -104,8 +108,8 @@ export async function updateProduct(productId: string, formData: FormData) {
     select: { category: { select: { slug: true, parent: { select: { slug: true } } } } }
   });
 
-  await prisma.$transaction(async (tx) => {
-    await tx.product.update({
+  const updatedProduct = await prisma.$transaction(async (tx) => {
+    const updated = await tx.product.update({
       where: { id: productId },
       data: {
         name,
@@ -119,7 +123,8 @@ export async function updateProduct(productId: string, formData: FormData) {
         seoTitle: String(formData.get("seoTitle") ?? "") || null,
         seoDescription: String(formData.get("seoDescription") ?? "") || null,
         categoryId
-      }
+      },
+      include: { category: { select: { slug: true, parent: { select: { slug: true } } } } }
     });
 
     // Specs/features are fully replaced on each save — simplest correct
@@ -150,11 +155,13 @@ export async function updateProduct(productId: string, formData: FormData) {
         await tx.productImage.create({ data: { productId, url: imageUrl, order: 0 } });
       }
     }
+
+    return updated;
   });
 
   revalidatePath("/admin/products");
   revalidatePath(`/admin/products/${productId}`);
-  await revalidateProductPaths(productId);
+  revalidateProductPaths(updatedProduct);
   // Category may have changed — revalidate the old one too, since the
   // product's ISR-cached page there won't otherwise notice it's gone.
   if (priorCategory?.category) {
@@ -168,24 +175,13 @@ export async function updateProduct(productId: string, formData: FormData) {
 export async function deleteProduct(productId: string) {
   await requireAdmin();
 
-  const product = await prisma.product.findUnique({
+  const product = await prisma.product.delete({
     where: { id: productId },
     select: { slug: true, category: { select: { slug: true, parent: { select: { slug: true } } } } }
   });
 
-  await prisma.product.delete({ where: { id: productId } });
-
   revalidatePath("/admin/products");
-  if (product) {
-    revalidatePath(`/products/${product.slug}`);
-    if (product.category) {
-      revalidatePath(`/${product.category.slug}`);
-      if (product.category.parent) {
-        revalidatePath(`/${product.category.parent.slug}/${product.category.slug}`);
-      }
-    }
-  }
-  revalidatePath("/");
+  revalidateProductPaths(product);
   redirect("/admin/products");
 }
 
@@ -201,7 +197,7 @@ export async function addOffer(productId: string, formData: FormData) {
     throw new Error("Display price must be a number.");
   }
 
-  await prisma.offer.create({
+  const offer = await prisma.offer.create({
     data: {
       productId,
       retailerId,
@@ -213,16 +209,24 @@ export async function addOffer(productId: string, formData: FormData) {
         | "OUT_OF_STOCK"
         | "UNKNOWN",
       featured: formData.get("offerFeatured") === "on"
+    },
+    select: {
+      product: { select: { slug: true, category: { select: { slug: true, parent: { select: { slug: true } } } } } }
     }
   });
 
   revalidatePath(`/admin/products/${productId}`);
-  await revalidateProductPaths(productId);
+  revalidateProductPaths(offer.product);
 }
 
 export async function deleteOffer(productId: string, offerId: string) {
   await requireAdmin();
-  await prisma.offer.delete({ where: { id: offerId } });
+  const offer = await prisma.offer.delete({
+    where: { id: offerId },
+    select: {
+      product: { select: { slug: true, category: { select: { slug: true, parent: { select: { slug: true } } } } } }
+    }
+  });
   revalidatePath(`/admin/products/${productId}`);
-  await revalidateProductPaths(productId);
+  revalidateProductPaths(offer.product);
 }
