@@ -1,0 +1,570 @@
+// ============================================================================
+// NeedInFind — Prisma schema (Phase 1 foundation)
+// Conceptual entities per spec: User/Account/Session, Conversation/Message,
+// Product/Category/ProductImage/ProductSpecification, Retailer/Offer,
+// Comparison/ComparisonProduct, BlogPost/BlogCategory/Tag,
+// PricingPlan/Subscription/UsageRecord, HomepageSection/SiteSetting,
+// plus AffiliateClick + AnalyticsEvent for tracking.
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  // Supabase: use the pooled "Transaction" connection string here (port 6543,
+  // via PgBouncer) for the app's normal query traffic.
+  url       = env("DATABASE_URL")
+  // Supabase: use the direct connection string here (port 5432, no PgBouncer)
+  // — Prisma Migrate needs a direct connection, not the pooled one.
+  directUrl = env("DIRECT_URL")
+}
+
+// ----------------------------------------------------------------------------
+// AUTH (Auth.js / NextAuth compatible shape)
+// ----------------------------------------------------------------------------
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  role          UserRole  @default(USER)
+  // Only set for credential-based admin logins (see src/auth.ts). Users who
+  // sign in via OAuth (Google, etc.) never have this populated.
+  passwordHash  String?
+  // Stripe Customer id, set on first checkout (Phase 10). Kept on User
+  // rather than only on Subscription so it's stable across a user's whole
+  // billing history, not just their current plan.
+  stripeCustomerId String? @unique
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts      Account[]
+  sessions      Session[]
+  conversations Conversation[]
+  subscriptions Subscription[]
+  usageRecords  UsageRecord[]
+  affiliateClicks AffiliateClick[]
+  analyticsEvents  AnalyticsEvent[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// ----------------------------------------------------------------------------
+// CATALOG
+// ----------------------------------------------------------------------------
+
+model Category {
+  id              String     @id @default(cuid())
+  name            String
+  slug            String     @unique
+  description     String?    @db.Text
+  imageUrl        String?
+  seoTitle        String?
+  seoDescription  String?    @db.Text
+  order           Int        @default(0)
+  featured        Boolean    @default(false)
+  enabled         Boolean    @default(true)
+
+  parentId        String?
+  parent          Category?  @relation("CategoryToSubcategory", fields: [parentId], references: [id], onDelete: SetNull)
+  subcategories   Category[] @relation("CategoryToSubcategory")
+
+  products        Product[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([parentId])
+  @@map("categories")
+}
+
+enum ProductStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+model Product {
+  id               String        @id @default(cuid())
+  name             String
+  slug             String        @unique
+  description      String?       @db.Text
+  shortDescription String?
+  brand            String?
+  model            String?
+  status           ProductStatus @default(DRAFT)
+  featured         Boolean       @default(false)
+
+  seoTitle         String?
+  seoDescription   String?       @db.Text
+
+  categoryId       String
+  category         Category      @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  images           ProductImage[]
+  specifications   ProductSpecification[]
+  features         ProductFeature[]
+  offers           Offer[]
+  comparisonLinks  ComparisonProduct[]
+  affiliateClicks  AffiliateClick[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([categoryId])
+  @@index([status])
+  @@map("products")
+}
+
+model ProductImage {
+  id        String  @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url       String
+  altText   String?
+  order     Int     @default(0)
+
+  @@index([productId])
+  @@map("product_images")
+}
+
+// Flexible EAV-style specs so a laptop (CPU/RAM/...) and a drill
+// (voltage/chuck size/...) can coexist without a rigid shared schema.
+model ProductSpecification {
+  id        String  @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  group     String? // e.g. "Performance", "Physical"
+  label     String  // e.g. "CPU", "Chuck size"
+  value     String
+  unit      String?
+  order     Int     @default(0)
+
+  @@index([productId])
+  @@map("product_specifications")
+}
+
+enum FeatureKind {
+  FEATURE
+  PRO
+  CON
+}
+
+model ProductFeature {
+  id        String      @id @default(cuid())
+  productId String
+  product   Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  kind      FeatureKind @default(FEATURE)
+  text      String
+  order     Int         @default(0)
+
+  @@index([productId])
+  @@map("product_features")
+}
+
+// ----------------------------------------------------------------------------
+// RETAILERS & OFFERS (one product -> many retailer offers)
+// ----------------------------------------------------------------------------
+
+model Retailer {
+  id                  String  @id @default(cuid())
+  name                String
+  slug                String  @unique
+  logoUrl             String?
+  websiteUrl          String?
+  affiliateDisclosure String? @db.Text
+  enabled             Boolean @default(true)
+  // Free-form retailer-specific config (tracking params, network id, etc.)
+  // so each retailer's affiliate structure doesn't need a schema change.
+  trackingConfig      Json?
+
+  offers    Offer[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("retailers")
+}
+
+enum OfferAvailability {
+  IN_STOCK
+  OUT_OF_STOCK
+  UNKNOWN
+}
+
+model Offer {
+  id            String            @id @default(cuid())
+  productId     String
+  product       Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  retailerId    String
+  retailer      Retailer          @relation(fields: [retailerId], references: [id], onDelete: Cascade)
+
+  affiliateUrl  String            @db.Text
+  displayPrice  Decimal?          @db.Decimal(10, 2)
+  currency      String            @default("USD")
+  availability  OfferAvailability @default(UNKNOWN)
+  featured      Boolean           @default(false)
+
+  clicks        AffiliateClick[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([productId])
+  @@index([retailerId])
+  @@map("offers")
+}
+
+// ----------------------------------------------------------------------------
+// AI CONVERSATIONS
+// ----------------------------------------------------------------------------
+
+enum MessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+model Conversation {
+  id         String   @id @default(cuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  // Anonymous/guest sessions are tracked by this opaque id (cookie-backed).
+  guestToken String?
+
+  // Last structured requirements extracted by the AI, validated server-side
+  // before being used to query the ProductSearchService.
+  requirements Json?
+
+  messages   Message[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([guestToken])
+  @@map("conversations")
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           MessageRole
+  content        String       @db.Text
+  // Structured data attached to this message, e.g. recommended product ids.
+  metadata       Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([conversationId])
+  @@map("messages")
+}
+
+// ----------------------------------------------------------------------------
+// COMPARISONS
+// ----------------------------------------------------------------------------
+
+model Comparison {
+  id             String   @id @default(cuid())
+  title          String
+  slug           String   @unique
+  description    String?  @db.Text
+  seoTitle       String?
+  seoDescription String?  @db.Text
+  featured       Boolean  @default(false)
+  // Which spec labels to render as comparison rows, in order.
+  fields         Json?
+
+  products ComparisonProduct[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("comparisons")
+}
+
+model ComparisonProduct {
+  id           String     @id @default(cuid())
+  comparisonId String
+  comparison   Comparison @relation(fields: [comparisonId], references: [id], onDelete: Cascade)
+  productId    String
+  product      Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  order        Int        @default(0)
+
+  @@unique([comparisonId, productId])
+  @@map("comparison_products")
+}
+
+// ----------------------------------------------------------------------------
+// BLOG / EDITORIAL
+// ----------------------------------------------------------------------------
+
+model BlogCategory {
+  id    String     @id @default(cuid())
+  name  String
+  slug  String     @unique
+  posts BlogPost[]
+
+  @@map("blog_categories")
+}
+
+model Tag {
+  id    String     @id @default(cuid())
+  name  String     @unique
+  slug  String     @unique
+  posts BlogPost[]
+}
+
+enum BlogPostStatus {
+  DRAFT
+  PUBLISHED
+}
+
+model BlogPost {
+  id             String         @id @default(cuid())
+  title          String
+  slug           String         @unique
+  content        String         @db.Text
+  excerpt        String?
+  featuredImage  String?
+  author         String?
+  status         BlogPostStatus @default(DRAFT)
+  publishedAt    DateTime?
+
+  seoTitle       String?
+  seoDescription String?        @db.Text
+  canonicalUrl   String?
+
+  categoryId String?
+  category   BlogCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  tags       Tag[]
+
+  // Loose references (by slug/id) to related products/comparisons for
+  // internal linking, kept flexible rather than forcing rigid join tables.
+  relatedProductIds    Json?
+  relatedComparisonIds Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([categoryId])
+  @@map("blog_posts")
+}
+
+// ----------------------------------------------------------------------------
+// PRICING / SUBSCRIPTIONS / USAGE (fully CMS-driven, nothing hardcoded)
+// ----------------------------------------------------------------------------
+
+enum BillingInterval {
+  MONTHLY
+  YEARLY
+}
+
+model PricingPlan {
+  id                String          @id @default(cuid())
+  name              String
+  slug              String          @unique
+  price             Decimal         @db.Decimal(10, 2)
+  currency          String          @default("USD")
+  billingInterval   BillingInterval @default(MONTHLY)
+  messageAllowance  Int
+  features          Json?
+  enabled           Boolean         @default(true)
+  promoPrice        Decimal?        @db.Decimal(10, 2)
+  promoStartsAt     DateTime?
+  promoEndsAt       DateTime?
+  order             Int             @default(0)
+
+  subscriptions Subscription[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("pricing_plans")
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELED
+  PAST_DUE
+  TRIALING
+}
+
+model Subscription {
+  id         String             @id @default(cuid())
+  userId     String
+  user       User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planId     String
+  plan       PricingPlan        @relation(fields: [planId], references: [id], onDelete: Restrict)
+  status     SubscriptionStatus @default(ACTIVE)
+
+  // Payment-provider identifiers, populated once a provider is selected (Phase 10).
+  providerCustomerId     String?
+  providerSubscriptionId String? @unique
+
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@map("subscriptions")
+}
+
+// One row per billing-period usage counter per identity (user or guest).
+model UsageRecord {
+  id         String   @id @default(cuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  guestToken String?
+  periodStart DateTime
+  periodEnd   DateTime
+  messageCount Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, periodStart])
+  @@unique([guestToken, periodStart])
+  @@index([userId])
+  @@index([guestToken])
+  @@map("usage_records")
+}
+
+// ----------------------------------------------------------------------------
+// HOMEPAGE CMS / SITE SETTINGS
+// ----------------------------------------------------------------------------
+
+enum HomepageSectionType {
+  HERO
+  FEATURED_CATEGORIES
+  FEATURED_PRODUCTS
+  COMPARISON_HIGHLIGHT
+  BLOG_HIGHLIGHT
+  PROMO_BANNER
+  HOW_IT_WORKS
+}
+
+model HomepageSection {
+  id      String              @id @default(cuid())
+  type    HomepageSectionType
+  title   String?
+  body    String?             @db.Text
+  // Section-specific payload: e.g. which category/product/post ids to show.
+  config  Json?
+  order   Int                 @default(0)
+  visible Boolean             @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("homepage_sections")
+}
+
+model SiteSetting {
+  key   String @id
+  value Json
+
+  @@map("site_settings")
+}
+
+// ----------------------------------------------------------------------------
+// ANALYTICS / AFFILIATE TRACKING
+// ----------------------------------------------------------------------------
+
+model AffiliateClick {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  guestToken String?
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  offerId   String
+  offer     Offer    @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  sourcePage String?
+  campaign   String?
+  createdAt  DateTime @default(now())
+
+  @@index([productId])
+  @@index([offerId])
+  @@index([createdAt])
+  @@map("affiliate_clicks")
+}
+
+enum AnalyticsEventType {
+  PRODUCT_VIEW
+  AFFILIATE_CLICK
+  AI_CONVERSATION_STARTED
+  AI_MESSAGE
+  REGISTRATION
+  COMPARISON_VIEW
+  BLOG_VIEW
+  SUBSCRIPTION_STARTED
+}
+
+model AnalyticsEvent {
+  id         String             @id @default(cuid())
+  type       AnalyticsEventType
+  userId     String?
+  user       User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+  guestToken String?
+  metadata   Json?
+  createdAt  DateTime           @default(now())
+
+  @@index([type])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("analytics_events")
+}
