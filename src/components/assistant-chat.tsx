@@ -93,7 +93,7 @@ export function AssistantChat({ initialMessage }: { initialMessage?: string }) {
                   : "max-w-[85%] rounded-2xl rounded-bl-sm border border-ink-100 bg-surface px-4 py-2.5 text-sm text-ink-900 shadow-soft"
               }
             >
-              <p>{m.content}</p>
+              <p className="whitespace-pre-line">{m.content}</p>
               {m.products && m.products.length > 0 && (
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                   {m.products.map((p) => (
@@ -107,8 +107,12 @@ export function AssistantChat({ initialMessage }: { initialMessage?: string }) {
 
         {pending && (
           <div className="flex justify-start">
-            <div className="rounded-2xl rounded-bl-sm border border-ink-100 bg-surface px-4 py-2.5 text-sm text-ink-300 shadow-soft">
-              Thinking…
+            <div
+              role="status"
+              className="flex items-center gap-2.5 rounded-2xl rounded-bl-sm border border-ink-100 bg-surface px-4 py-2.5 text-sm text-ink-500 shadow-soft"
+            >
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-ink-100 border-t-trust-500" />
+              Finding products…
             </div>
           </div>
         )}
@@ -146,7 +150,7 @@ export function AssistantChat({ initialMessage }: { initialMessage?: string }) {
             onChange={(e) => setInput(e.target.value)}
             disabled={limitReached}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
+              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
                 e.preventDefault();
                 send(input);
               }

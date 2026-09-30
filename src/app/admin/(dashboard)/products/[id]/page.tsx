@@ -53,6 +53,26 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
         </form>
       </div>
 
+      {product.images.length > 0 && (
+        <div className="mt-4 flex flex-wrap gap-2">
+          {product.images.map((img, i) => (
+            <div
+              key={img.id}
+              className="relative h-16 w-16 overflow-hidden rounded-lg border border-ink-100 bg-white"
+              title={i === 0 ? "Main image" : `Image ${i + 1}`}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={img.url} alt="" className="h-full w-full object-contain" />
+              {i === 0 && (
+                <span className="absolute bottom-0 left-0 right-0 bg-ink-900/80 text-center text-[9px] font-medium uppercase text-parchment">
+                  Main
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
       <ProductForm
         action={boundUpdate}
         submitLabel="Save changes"
@@ -68,7 +88,7 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
           seoTitle: product.seoTitle,
           seoDescription: product.seoDescription,
           categoryId: product.categoryId,
-          imageUrl: product.images[0]?.url ?? "",
+          imageUrls: product.images.map((img) => img.url).join("\n"),
           specifications,
           features
         }}

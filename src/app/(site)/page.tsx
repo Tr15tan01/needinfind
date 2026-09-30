@@ -1,4 +1,6 @@
 import Link from "next/link";
+import Form from "next/form";
+import { HeroAskInput } from "@/components/hero-ask-input";
 import { getFeaturedProducts, getFeaturedCategories } from "@/lib/services/catalog";
 import { listComparisons } from "@/lib/services/comparisons";
 import { getRecentPosts } from "@/lib/services/blog";
@@ -54,21 +56,16 @@ export default async function HomePage() {
             right product.
           </p>
 
-          <form
+          {/* next/form: submits as a client-side navigation (with the loading
+              spinner) instead of a full page reload. */}
+          <Form
             action="/assistant"
-            method="GET"
             className="mx-auto mt-10 max-w-xl rounded-2xl border border-ink-100 bg-surface p-2 text-left shadow-lifted ring-1 ring-ink-900/[0.02]"
           >
             <label htmlFor="need" className="sr-only">
               Describe what you need
             </label>
-            <textarea
-              id="need"
-              name="q"
-              rows={2}
-              placeholder="I need a laptop for programming, under $1,000…"
-              className="w-full resize-none rounded-lg border-0 bg-transparent px-3.5 py-3.5 text-ink-900 placeholder:text-ink-300 focus:outline-none"
-            />
+            <HeroAskInput />
             <div className="flex items-center justify-between px-2.5 pb-1.5 pt-1">
               <span className="flex items-center gap-1.5 text-xs text-ink-300">
                 <span className="h-1.5 w-1.5 rounded-full bg-trust-500" aria-hidden />
@@ -81,7 +78,7 @@ export default async function HomePage() {
                 Ask AI
               </button>
             </div>
-          </form>
+          </Form>
         </div>
       </section>
 

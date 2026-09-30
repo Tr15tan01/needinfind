@@ -8,14 +8,14 @@ export function ProductCard({ product }: { product: FeaturedProduct }) {
       href={`/products/${product.slug}`}
       className="group flex flex-col overflow-hidden rounded-xl border border-ink-100 bg-surface shadow-soft transition hover:-translate-y-0.5 hover:shadow-lifted"
     >
-      <div className="relative aspect-[4/3] w-full overflow-hidden bg-parchment-200">
+      <div className="relative aspect-[4/3] w-full overflow-hidden bg-white">
         {product.imageUrl ? (
           <Image
             src={product.imageUrl}
             alt={product.name}
             fill
             sizes="(max-width: 640px) 100vw, 33vw"
-            className="object-cover transition duration-300 group-hover:scale-[1.03]"
+            className="object-contain p-3 transition duration-300 group-hover:scale-[1.03]"
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-xs text-ink-300">

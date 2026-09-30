@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Fraunces, Inter } from "next/font/google";
 import "./globals.css";
 import { themeInitScript } from "@/lib/theme-script";
+import { NavigationProgress } from "@/components/navigation-progress";
 
 const display = Fraunces({
   subsets: ["latin"],
@@ -41,7 +42,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* eslint-disable-next-line react/no-danger */}
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
-      <body className="flex min-h-screen flex-col">{children}</body>
+      <body className="flex min-h-screen flex-col">
+        <NavigationProgress />
+        {children}
+      </body>
     </html>
   );
 }

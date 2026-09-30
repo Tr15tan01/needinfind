@@ -11,13 +11,18 @@ import { requireAdmin } from "@/lib/session";
 // revalidated explicitly here — the time-based revalidation is a backstop,
 // not the primary invalidation mechanism.
 //
-// Takes the already-fetched product shape rather than querying for it
-// itself — every call site already has this data from its own create/
-// update/delete query, so re-fetching here was a redundant round-trip.
+// Takes the already-fetched product shape rather than querying for it —
+// every caller already has this from its own write, so re-fetching was a
+// wasted database round-trip on every save.
 type RevalidateTarget = {
   slug: string;
   category: { slug: string; parent: { slug: string } | null } | null;
 };
+
+const REVALIDATE_SELECT = {
+  slug: true,
+  category: { select: { slug: true, parent: { select: { slug: true } } } }
+} as const;
 
 function revalidateProductPaths(product: RevalidateTarget) {
   revalidatePath(`/products/${product.slug}`);
@@ -45,6 +50,16 @@ function parseLines(raw: string | null) {
       const safeLabel = (label ?? line).trim();
       return { label: safeLabel, value: rest.join(":").trim() || safeLabel, order: i };
     });
+}
+
+// One URL per line; first line becomes the main image (order 0).
+function parseImageUrls(raw: string | null) {
+  if (!raw) return [];
+  return raw
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => /^https?:\/\//i.test(line))
+    .map((url, i) => ({ url, order: i }));
 }
 
 function parseFeatures(raw: string | null) {
@@ -81,13 +96,11 @@ export async function createProduct(formData: FormData) {
       seoTitle: String(formData.get("seoTitle") ?? "") || null,
       seoDescription: String(formData.get("seoDescription") ?? "") || null,
       categoryId,
-      images: formData.get("imageUrl")
-        ? { create: [{ url: String(formData.get("imageUrl")), order: 0 }] }
-        : undefined,
+      images: { create: parseImageUrls(String(formData.get("imageUrls") ?? "")) },
       specifications: { create: parseLines(String(formData.get("specifications") ?? "")) },
       features: { create: parseFeatures(String(formData.get("features") ?? "")) }
     },
-    include: { category: { select: { slug: true, parent: { select: { slug: true } } } } }
+    select: { id: true, ...REVALIDATE_SELECT }
   });
 
   revalidatePath("/admin/products");
@@ -124,7 +137,7 @@ export async function updateProduct(productId: string, formData: FormData) {
         seoDescription: String(formData.get("seoDescription") ?? "") || null,
         categoryId
       },
-      include: { category: { select: { slug: true, parent: { select: { slug: true } } } } }
+      select: REVALIDATE_SELECT
     });
 
     // Specs/features are fully replaced on each save — simplest correct
@@ -146,14 +159,14 @@ export async function updateProduct(productId: string, formData: FormData) {
       });
     }
 
-    const imageUrl = String(formData.get("imageUrl") ?? "").trim();
-    if (imageUrl) {
-      const existing = await tx.productImage.findFirst({ where: { productId }, orderBy: { order: "asc" } });
-      if (existing) {
-        await tx.productImage.update({ where: { id: existing.id }, data: { url: imageUrl } });
-      } else {
-        await tx.productImage.create({ data: { productId, url: imageUrl, order: 0 } });
-      }
+    // Images are replaced as a set too — the textarea is the source of
+    // truth for which images exist and in what order.
+    await tx.productImage.deleteMany({ where: { productId } });
+    const images = parseImageUrls(String(formData.get("imageUrls") ?? ""));
+    if (images.length) {
+      await tx.productImage.createMany({
+        data: images.map((img) => ({ ...img, productId }))
+      });
     }
 
     return updated;
@@ -177,7 +190,7 @@ export async function deleteProduct(productId: string) {
 
   const product = await prisma.product.delete({
     where: { id: productId },
-    select: { slug: true, category: { select: { slug: true, parent: { select: { slug: true } } } } }
+    select: REVALIDATE_SELECT
   });
 
   revalidatePath("/admin/products");
@@ -210,9 +223,7 @@ export async function addOffer(productId: string, formData: FormData) {
         | "UNKNOWN",
       featured: formData.get("offerFeatured") === "on"
     },
-    select: {
-      product: { select: { slug: true, category: { select: { slug: true, parent: { select: { slug: true } } } } } }
-    }
+    select: { product: { select: REVALIDATE_SELECT } }
   });
 
   revalidatePath(`/admin/products/${productId}`);
@@ -223,9 +234,7 @@ export async function deleteOffer(productId: string, offerId: string) {
   await requireAdmin();
   const offer = await prisma.offer.delete({
     where: { id: offerId },
-    select: {
-      product: { select: { slug: true, category: { select: { slug: true, parent: { select: { slug: true } } } } } }
-    }
+    select: { product: { select: REVALIDATE_SELECT } }
   });
   revalidatePath(`/admin/products/${productId}`);
   revalidateProductPaths(offer.product);

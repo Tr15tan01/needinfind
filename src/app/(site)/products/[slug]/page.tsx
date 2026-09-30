@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
@@ -7,6 +6,7 @@ import { getComparisonsForProduct } from "@/lib/services/comparisons";
 import { getPostsForProduct } from "@/lib/services/blog";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { ProductCard } from "@/components/product-card";
+import { ProductGallery } from "@/components/product-gallery";
 import { JsonLd } from "@/components/structured-data";
 import { getSafeSession } from "@/lib/safe-auth";
 import { getGuestToken } from "@/lib/guest-session";
@@ -43,11 +43,13 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   const product = await getProductBySlug(slug);
   if (!product) notFound();
 
-  const related = await getRelatedProducts(product.id, product.categoryId);
-  const comparisons = await getComparisonsForProduct(product.id);
-  const articles = await getPostsForProduct(product.id);
-
-  const session = await getSafeSession();
+  // Independent lookups — run them together instead of one after another.
+  const [related, comparisons, articles, session] = await Promise.all([
+    getRelatedProducts(product.id, product.categoryId),
+    getComparisonsForProduct(product.id),
+    getPostsForProduct(product.id),
+    getSafeSession()
+  ]);
   const userId = session?.user ? (session.user as { id?: string }).id ?? null : null;
   recordEvent(
     "PRODUCT_VIEW",
@@ -110,21 +112,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
       </p>
 
       <div className="mt-3 grid gap-10 lg:grid-cols-2">
-        <div className="relative aspect-[4/3] overflow-hidden rounded-xl border border-ink-100 bg-parchment-200">
-          {product.images[0] ? (
-            <Image
-              src={product.images[0].url}
-              alt={product.images[0].altText ?? product.name}
-              fill
-              sizes="(max-width: 1024px) 100vw, 50vw"
-              className="object-cover"
-            />
-          ) : (
-            <div className="flex h-full items-center justify-center text-sm text-ink-300">
-              No image yet
-            </div>
-          )}
-        </div>
+        <ProductGallery images={product.images} productName={product.name} />
 
         <div>
           {product.brand && (

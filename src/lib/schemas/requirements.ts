@@ -13,12 +13,25 @@ export const assistantTurnSchema = z.object({
   action: z.enum(["ask", "recommend"]),
   // Required when action is "ask" — the next clarifying question to show.
   question: z.string().nullable().optional(),
+  // Optional refining question shown AFTER products on a "recommend" turn
+  // (e.g. "Want me to narrow it down by budget?"), so the user sees
+  // suggestions first instead of being questioned up front.
+  followUp: z.string().nullable().optional(),
   // Structured requirements extracted so far. Every field optional since
   // early turns may only have one or two filled in — this is *merged* into
   // the conversation's stored requirements turn over turn, not replaced.
   requirements: z.object({
     categorySlug: z.string().nullable().optional(),
-    budgetMax: z.number().positive().nullable().optional(),
+    // Models sometimes send "1000", "$1,000" or 0 — accept those rather than
+    // discarding the whole turn (which used to fall back to a generic
+    // question and show no products). Negative numbers are still rejected.
+    budgetMax: z.preprocess((v) => {
+      if (typeof v === "string") {
+        const n = Number(v.replace(/[^0-9.\-]/g, ""));
+        return v.trim() === "" || Number.isNaN(n) ? null : n;
+      }
+      return v === 0 ? null : v;
+    }, z.number().positive().nullable().optional()),
     keywords: z.array(z.string()).optional(),
     notes: z.string().nullable().optional()
   })

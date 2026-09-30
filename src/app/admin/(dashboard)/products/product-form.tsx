@@ -13,7 +13,7 @@ type ProductFormValues = {
   seoTitle?: string | null;
   seoDescription?: string | null;
   categoryId?: string;
-  imageUrl?: string;
+  imageUrls?: string;
   specifications?: string;
   features?: string;
 };
@@ -78,8 +78,14 @@ export async function ProductForm({
         <textarea name="description" rows={4} defaultValue={values?.description ?? ""} className={inputClass} />
       </Field>
 
-      <Field label="Primary image URL">
-        <input name="imageUrl" type="url" placeholder="https://…" defaultValue={values?.imageUrl ?? ""} className={inputClass} />
+      <Field label="Image URLs — one per line. The first one is the main image">
+        <textarea
+          name="imageUrls"
+          rows={4}
+          placeholder={"https://example.com/front.jpg\nhttps://example.com/side.jpg\nhttps://example.com/back.jpg"}
+          defaultValue={values?.imageUrls ?? ""}
+          className={`${inputClass} font-mono text-xs`}
+        />
       </Field>
 
       <Field label="Specifications — one per line, Label: Value">
